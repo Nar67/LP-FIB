@@ -5,6 +5,7 @@
 #include <utility>
 #include <list>
 #include <map>
+#include <climits>
 using namespace std;
 
 // struct to store information about tokens
@@ -13,6 +14,9 @@ typedef struct {
   string text;
 } Attrib;
 
+
+void printList(list<pair<int,int> > list);
+list<pair<int,int> > normalizee(list<pair<int,int> >& l);
 
 extern map<string, list<pair<int,int> > > dpmap;
 // function to fill token information (predeclaration)
@@ -32,6 +36,8 @@ AST* createASTnode(Attrib* attr, int ttype, char *textt);
 #include <cmath>
 
 
+map<string, list<pair<int,int> > > dpmap;
+
 // function to fill token information
 void zzcr_attr(Attrib *attr, int type, char *text) {
 	if (type == NUM) {
@@ -48,17 +54,12 @@ void zzcr_attr(Attrib *attr, int type, char *text) {
 	}
 }
 
-AST* createASTstring(AST *child, string kind){
-	AST* as = new AST;
-	as->kind = kind;
-	as->right = NULL;
-	as->down = child;
-}
+
 
 // function to create a new AST node
 AST* createASTnode(Attrib* attr, int type, char* text) {
   AST* as = new AST;
-  as->kind = attr->kind; 
+  as->kind = attr->kind;
   as->text = attr->text;
   as->right = NULL; 
   as->down = NULL;
@@ -78,14 +79,16 @@ void ASTPrintIndent(AST *a,string s)
 {
   if (a==NULL) return;
 
-  if(a->kind != "intconst" && a->kind != "identifier") cout<<a->kind;
+  if(a->kind != "intconst" && a->kind != "identifier" && a->kind != "·") cout<<a->kind;
   if (a->text!="") cout<<a->text;
   cout<<endl;
 
   AST *i = a->down;
   while (i!=NULL && i->right!=NULL) {
-    cout<<s+"  \\__";
-    ASTPrintIndent(i,s+"  |"+string(i->kind.size()+i->text.size(),' '));
+    if(i->kind != "·"){
+    	cout<<s+"  \\__";
+    	ASTPrintIndent(i,s+"  |"+string(i->kind.size()+i->text.size(),' '));
+    }
     i=i->right;
   }
   
@@ -106,47 +109,125 @@ void ASTPrint(AST *a)
   }
 }
 
-//int evaluate(AST *a) {
-//	if (a == NULL) return 0;
-//	else if (a->kind == "intconst")
-//		return atoi(a->text.c_str());
-//	}
-//
-//pair<int,int> evaluatePair(AST *a) {
-//	if (a == NULL) return 0;
-//	else if (a->kind == "pair"){
-//		pair<int,int> p(evaluate(child(a,0)), evaluate(child(a,1)));
-//		return p;
-//	}
-//	
-//}
-//
-//list<pair<int,int>> evaluateList(AST *a) {
-//	if (a == NULL) return 0;
-//	else if (a->kind == "def"){
-//		list<pair<int,int>> l(evaluatePair(child(a,0)));
-//		return l.splice(l.end(), evaluateList(child(a,1)));
-//	}
-//	else if (a->kind == "pair"){
-//		list<pair<int,int>> l 
-//	}
-//}
-//
-//void execute(AST *a) {
-//	if (a == NULL)
-//		return;
-//	else if (a->kind == "=")
-//		dps[child(a,0)->text] = evaluateList(child(a,1));
+AST* createASTstring(AST *child, string kind){
+	AST* as = new AST;
+	as->kind = kind;
+	//as->right = ((kind == "def") ? concat : NULL;
+	as->right = NULL;
+	as->down = child;
+}
+
+int evaluate(AST *a) {
+	if (a == NULL) return 0;
+	else if (a->kind == "intconst")
+		return atoi(a->text.c_str());
+	}
+
+pair<int,int> evaluatePair(AST *a) {
+	if (a->kind == "pair"){
+		return make_pair(evaluate(child(a,0)), evaluate(child(a,1)));
+	}
+}
+
+list<pair<int,int> > evaluateList(AST *a) {
+	if (a->kind == "literal"){
+		list<pair<int,int> > l;
+		int i = 0;
+		while(child(a, i)!=NULL){
+			l.push_back(evaluatePair(child(a, i++)));
+		}
+		return l;
+	}
+	else if (a->kind == "identifier"){
+		return dpmap[a->text];
+	}
+}
+
+list<pair<int,int> > evaluateExpr(AST *a) {
+	if (a->kind == "def"){
+		int i = 0;
+		list<pair<int,int> > l;
+		while(child(a,i)!=NULL)
+			l.splice(l.end(), evaluateList(child(a,i++)));
+		return l;
+	}
+	else if (a->kind == "NORMALIZE"){
+		list<pair<int,int> > l = evaluateExpr(child(a,0));
+		return normalizee(l);
+	}
+	else if (a->kind == "POP"){
+		list<pair<int,int> > l = evaluateExpr(child(a,0));
+		l.pop_back();
+		return l;
+	}
+	else if (a->kind == "PUSH"){
+		list<pair<int,int> > l = evaluateExpr(child(a,0));
+		l.push_back(evaluatePair(child(a,1)));
+		return l;
+	}
+}
+
+void plot(AST* a){
+	cout << "[";
+	printList(evaluateExpr(a));
+	cout << "]" << endl; 
+ }
+
+void execute(AST *a) {
+	if (a == NULL){
+		return;
+	}
+	else if(a->kind == "identifier"){
+		execute(child(a, 0));
+	}
+	else if(a->kind == "list"){
+		execute(child(a, 0));
+	}
+	else if (a->kind == "="){
+		dpmap[child(a,0)->text] = evaluateExpr(child(a,1));
+		//printList(dpmap[child(a,0)->text]);
+	}
+	else if (a->kind == "PLOT" || a->kind == "LOGPLOT" ){
+		cout << a->kind << " ";
+		plot(child(a,0));
+	}
 //	else if(a->kind == "write")
 //		cout << evaluate(child(a,0)) << endl;
-//	execute(a->right);
-//}
+	execute(a->right);
+}
+
+
+
+void printList(list<pair<int,int> > list){
+	bool f = true;
+	for(auto it : list){
+		if(not f) {
+			cout << ",";
+		}
+		f = false;
+		cout << "<" << it.first << "," << it.second << ">";
+	}
+}
+
+list<pair<int,int> > normalizee(list<pair<int,int> >& l){
+	int xmin, ymin = INT_MAX;
+	for(auto it : l){
+		if(it.first < xmin) xmin = it.first;
+		if(it.second < ymin) ymin = it.second;
+	}
+	list<pair<int,int> > list;
+	for(auto it : l){
+		//cerr << xmin << endl;
+		list.push_back(make_pair(it.first-xmin, it.second-ymin));
+	}
+	return list;
+}
 
 int main() {
 	AST *root = NULL;
 	ANTLR(plots(&root), stdin);
 	ASTPrint(root);
-	//execute(root);
+	execute(child(root,0));
 }
 >>
 
@@ -200,11 +281,11 @@ instrucction: ID ASIG^ expr | plot | logplot | ghile | iff;
 
 
 expr: (def | normalize | pop | push | amend);
-def: listp (CONC! listp)* <<#0=createASTstring(_sibling, "def");>>;
+def: listp (CONC listp)* <<#0=createASTstring(_sibling, "def");>>;
 listp: listt | ID;
 listt: LISTSTART! literal LISTEND!; 
 
-normalize: NORMALIZE^ OPENPAR! def CLOSEPAR!;
+normalize: NORMALIZE^ OPENPAR! expr CLOSEPAR!;
 plot: PLOT^ OPENPAR! expr CLOSEPAR!;
 logplot: LOGPLOT^ OPENPAR! expr CLOSEPAR!;
 
