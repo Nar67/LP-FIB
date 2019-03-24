@@ -5,6 +5,7 @@
 #include <utility>
 #include <list>
 #include <map>
+#include <set>
 #include <climits>
 using namespace std;
 
@@ -16,7 +17,9 @@ typedef struct {
 
 
 void printList(list<pair<int,int> > list);
-list<pair<int,int> > normalizee(list<pair<int,int> >& l);
+list<pair<int,int> > normalizee(list<pair<int,int> > &l);
+
+
 
 extern map<string, list<pair<int,int> > > dpmap;
 // function to fill token information (predeclaration)
@@ -25,6 +28,13 @@ void zzcr_attr(Attrib *attr, int type, char *text);
 // fields for AST nodes
 #define AST_FIELDS string kind; string text;
 #include "ast.h"
+
+
+bool evalBooleanExpr(AST *a);
+
+bool checkList(list<pair<int,int> > l);
+
+list<pair<int,int> > amend(list<pair<int,int> > l);
 
 // macro to create a new AST node (and function predeclaration)
 #define zzcr_ast(as,attr,ttype,textt) as=createASTnode(attr,ttype,textt)
@@ -130,7 +140,7 @@ pair<int,int> evaluatePair(AST *a) {
 }
 
 list<pair<int,int> > evaluateList(AST *a) {
-	if (a->kind == "literal"){
+	if (a->kind == "literal" || a->kind == "·" ){
 		list<pair<int,int> > l;
 		int i = 0;
 		while(child(a, i)!=NULL){
@@ -146,10 +156,12 @@ list<pair<int,int> > evaluateList(AST *a) {
 list<pair<int,int> > evaluateExpr(AST *a) {
 	if (a->kind == "def"){
 		int i = 0;
-		list<pair<int,int> > l;
-		while(child(a,i)!=NULL)
-			l.splice(l.end(), evaluateList(child(a,i++)));
-		return l;
+		list<pair<int,int> > lst; //= evaluateList(child(a,i++));
+		while(child(a,i)!=NULL){
+			list<pair<int,int> > l = evaluateList(child(a,i++));
+			lst.insert(lst.end(), l.begin(), l.end());
+		}
+		return lst;
 	}
 	else if (a->kind == "NORMALIZE"){
 		list<pair<int,int> > l = evaluateExpr(child(a,0));
@@ -165,9 +177,42 @@ list<pair<int,int> > evaluateExpr(AST *a) {
 		l.push_back(evaluatePair(child(a,1)));
 		return l;
 	}
+	else if (a->kind == "AMEND"){
+		list<pair<int,int> > l = amend(evaluateExpr(child(a,0)));
+		return l;
+	}
+}
+
+list<pair<int,int> > amend(list<pair<int,int> > l){
+	set<int> xrep, yrep;
+	list<pair<int,int> > lst = l;
+	//list<pair<int,int> >::iterator it = lst.begin();
+	for(list<pair<int,int> >::iterator it = lst.begin(); it != lst.end(); ++it){
+		pair<int,int> p = *it;
+		cout << "pair: " << p.first << " ," << p.second << endl;
+		cout << "it: " << it->first << " ," << it->second << endl;
+		if(xrep.end() == xrep.find(p.first) && yrep.end() == yrep.find(p.second)) {
+			xrep.insert(p.first);
+			yrep.insert(p.second);
+		}
+		else {
+			cout << "list1: " << endl;
+			printList(lst);
+			cout << endl << "it: " << it->first << " ," << it->second << endl;
+			lst.remove(p);
+			cout << endl << "list2: " << endl;
+			printList(lst);
+			cout << endl;
+		}
+
+	}
+	//for(list<pair<int,int> >::iterator it = lst.begin(); it != lst.end(); ++it){
+	//}
+	return lst;
 }
 
 void plot(AST* a){
+	cout << child(a,0)->text;
 	cout << "[";
 	printList(evaluateExpr(a));
 	cout << "]" << endl; 
@@ -191,9 +236,61 @@ void execute(AST *a) {
 		cout << a->kind << " ";
 		plot(child(a,0));
 	}
-//	else if(a->kind == "write")
-//		cout << evaluate(child(a,0)) << endl;
+	else if(a->kind == "WHILE"){
+		while(evalBooleanExpr(child(a,0))){
+			execute(child(a,1));
+		}
+	}
+	else if(a->kind == "IF"){
+		if(evalBooleanExpr(child(a,0))){
+			execute(child(a,1));
+		}
+	}
 	execute(a->right);
+}
+
+bool evalBooleanExpr(AST *a){
+	if(a == NULL) return false;
+	else if(a->kind == "NOT"){
+		return not evalBooleanExpr(child(a,0));
+	}
+	else if(a->kind == "AND"){
+		//cout << "a0: " << child(a,0)->kind << " a1: " << child(a,1)->kind << endl;
+		return evalBooleanExpr(child(a,0)) && evalBooleanExpr(child(a,1));
+	}
+	else if(a->kind == "OR"){
+		return evalBooleanExpr(child(a,0)) || evalBooleanExpr(child(a,1));
+	}
+	else if(a->kind == ">"){
+		return evaluatePair(child(a,0)) > evaluatePair(child(a,1));
+	}
+	else if(a->kind == "<"){
+		return evaluatePair(child(a,0)) < evaluatePair(child(a,1));
+	}
+	else if(a->kind == "!="){
+		return evaluatePair(child(a,0)) != evaluatePair(child(a,1));
+	}
+	else if(a->kind == "=="){
+		return evaluatePair(child(a,0)) == evaluatePair(child(a,1));
+	}
+	else if(a->kind == "EMPTY"){
+		return evaluateExpr(child(a,0)).empty();
+	}
+	else if(a->kind == "CHECK"){
+		return checkList(evaluateExpr(child(a,0)));
+	}
+}
+
+
+bool checkList(list<pair<int,int> > l){
+	set<int> xrep, yrep;
+	for(auto const& p : l){
+		if(xrep.end() == xrep.find(p.first)) xrep.insert(p.first);
+		else return false;
+		if(yrep.end() == yrep.find(p.second)) yrep.insert(p.second);
+		else return false;
+	}
+	return true;
 }
 
 
@@ -201,23 +298,21 @@ void execute(AST *a) {
 void printList(list<pair<int,int> > list){
 	bool f = true;
 	for(auto it : list){
-		if(not f) {
-			cout << ",";
-		}
+		if(not f) cout << ",";
 		f = false;
 		cout << "<" << it.first << "," << it.second << ">";
 	}
 }
 
-list<pair<int,int> > normalizee(list<pair<int,int> >& l){
-	int xmin, ymin = INT_MAX;
-	for(auto it : l){
-		if(it.first < xmin) xmin = it.first;
-		if(it.second < ymin) ymin = it.second;
+list<pair<int,int> > normalizee(list<pair<int,int> > &l){
+	int xmin, ymin = 10;
+	for(auto const& it : l){
+		xmin = min(it.first, xmin);
+		ymin = min(it.second, ymin);
 	}
+	//cout << "xmin: " << xmin << endl;
 	list<pair<int,int> > list;
-	for(auto it : l){
-		//cerr << xmin << endl;
+	for(auto const& it : l){
 		list.push_back(make_pair(it.first-xmin, it.second-ymin));
 	}
 	return list;
@@ -296,12 +391,12 @@ amend: AMEND^ OPENPAR! expr CLOSEPAR!;
 ghile: WHILE^ OPENPAR! boolexpr CLOSEPAR! linstrucction ENDWHILE!; 
 iff: IF^ OPENPAR! boolexpr CLOSEPAR! linstrucction ENDIF!;
 
-boolexpr: andexpr | comparison; 
+boolexpr: andexpr; 
 andexpr: orexpr (AND^ orexpr)*;
 orexpr: notexpr (OR^ notexpr)*; 
 notexpr: NOT^ boolatom | boolatom;
 boolatom: boolquark |(OPENPAR! andexpr CLOSEPAR!);
-boolquark: empty | check;
+boolquark: empty | check | comparison;
 
 empty: EMPTY^ OPENPAR! expr CLOSEPAR!;
 check: CHECK^ OPENPAR! expr CLOSEPAR!;
