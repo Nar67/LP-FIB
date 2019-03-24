@@ -17,7 +17,7 @@ typedef struct {
 
 
 void printList(list<pair<int,int> > list);
-list<pair<int,int> > normalizee(list<pair<int,int> > &l);
+list<pair<int,int> > normalizee(list<pair<int,int> > l);
 
 
 
@@ -164,8 +164,7 @@ list<pair<int,int> > evaluateExpr(AST *a) {
 		return lst;
 	}
 	else if (a->kind == "NORMALIZE"){
-		list<pair<int,int> > l = evaluateExpr(child(a,0));
-		return normalizee(l);
+		return normalizee(evaluateExpr(child(a,0)));
 	}
 	else if (a->kind == "POP"){
 		list<pair<int,int> > l = evaluateExpr(child(a,0));
@@ -187,24 +186,17 @@ list<pair<int,int> > amend(list<pair<int,int> > l){
 	set<int> xrep, yrep;
 	list<pair<int,int> > lst = l;
 	//list<pair<int,int> >::iterator it = lst.begin();
-	for(list<pair<int,int> >::iterator it = lst.begin(); it != lst.end(); ++it){
+	list<pair<int,int> >::iterator it = lst.begin();
+	while(it != lst.end()){
 		pair<int,int> p = *it;
-		cout << "pair: " << p.first << " ," << p.second << endl;
-		cout << "it: " << it->first << " ," << it->second << endl;
 		if(xrep.end() == xrep.find(p.first) && yrep.end() == yrep.find(p.second)) {
 			xrep.insert(p.first);
 			yrep.insert(p.second);
 		}
 		else {
-			cout << "list1: " << endl;
-			printList(lst);
-			cout << endl << "it: " << it->first << " ," << it->second << endl;
-			lst.remove(p);
-			cout << endl << "list2: " << endl;
-			printList(lst);
-			cout << endl;
+			it = lst.erase(it);
 		}
-
+		++it;
 	}
 	//for(list<pair<int,int> >::iterator it = lst.begin(); it != lst.end(); ++it){
 	//}
@@ -304,18 +296,16 @@ void printList(list<pair<int,int> > list){
 	}
 }
 
-list<pair<int,int> > normalizee(list<pair<int,int> > &l){
+list<pair<int,int> > normalizee(list<pair<int,int> > l){
 	int xmin, ymin = 10;
-	for(auto const& it : l){
-		xmin = min(it.first, xmin);
-		ymin = min(it.second, ymin);
+	for(auto p : l){
+		xmin = min(p.first, xmin);
+		ymin = min(p.second, ymin);
 	}
-	//cout << "xmin: " << xmin << endl;
-	list<pair<int,int> > list;
-	for(auto const& it : l){
-		list.push_back(make_pair(it.first-xmin, it.second-ymin));
-	}
-	return list;
+	list<pair<int,int> > lst;
+	for(list<pair<int,int> >::iterator it = l.begin(); it != l.end(); ++it)
+		lst.push_back(make_pair(it->first-xmin, it->second-ymin));
+	return lst;
 }
 
 int main() {
