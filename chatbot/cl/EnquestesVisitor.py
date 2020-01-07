@@ -47,8 +47,9 @@ class EnquestesVisitor(ParseTreeVisitor):
         c = ctx.getChildren()
         l = [next(c) for i in range(ctx.getChildCount())]
         id1, id2 = self.getItemIDs(l[3].getText())
-        self.g.add_edge(self.get_node_by_ID(
-            id1), self.get_node_by_ID(id2), label=l[0])
+        node1 = self.add_label_to_node(self.get_node_by_ID(id1), l[0])
+        node2 = self.add_label_to_node(self.get_node_by_ID(id2), l[0])
+        self.g.add_edge(node1, node2)
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by EnquestesParser#alternativa.
@@ -81,10 +82,16 @@ class EnquestesVisitor(ParseTreeVisitor):
 
     # Gets the edge by id
     def get_edge_by_ID(self, id):
-        for i in self.g.edges.data():
+        for i in self.g.edges():
             print(i)
-            if i[2] != {} and str(i[2]['label']) == id:
+            if i[0][2] == id or i[1][2] == id:
                 return i
+
+    def add_label_to_node(self, node, label):
+        new = node + (str(label),)
+        self.g.remove_node(node)
+        self.g.add_node(new)
+        return new
 
     # Gets all the alternatives with the ids of the Items they refer
     def get_altervatives(self, alts):
@@ -104,18 +111,19 @@ class EnquestesVisitor(ParseTreeVisitor):
     # Creates all edges from an alternatives list
     def add_edges_from_alternatives(self, itemID, alts):
         item_edge = self.get_edge_by_ID(itemID)
+        print("edge")
+        print(item_edge)
         item_node = self.get_node_by_ID(item_edge[0][0])
         for (question, id) in alts:
             alt_edge = self.get_edge_by_ID(id)
-            alt_node = self.get_node_by_ID(alt_edge[0][0])
-            self.g.add_edge(item_node, alt_node, label=question)
+            alt_node = self.add_label_to_node(
+                self.get_node_by_ID(alt_edge[0][0]), question)
+            self.g.add_edge(item_node, alt_node)
 
     # Creates edges with the order from 'Enquesta'
     def add_question_order(self, enquestaID, ord):
         start_node = self.get_node_by_ID(enquestaID)
         items = ord.split(' ')
-        print("items")
-        print(items)
         for i in items:
             item_edge = self.get_edge_by_ID(i)
             item_node = self.get_node_by_ID(item_edge[0][0])
@@ -125,28 +133,42 @@ class EnquestesVisitor(ParseTreeVisitor):
         end_node = self.get_node_by_ID("END")
         self.g.add_edge(item_node, end_node)
 
+    def put_edges(self):
+        G = nx.create_empty_copy(self.g)  # no edges
+        for i in range(G.nodes()):
+            for j in range(G.nodes()[i:]):
+                for k in i[2:]:
+                    if k in j:
+                        G.add_edge(G.nodes()[i], G.nodes()[j])
+        self.g = G
+
     # Draws the graph
+
     def draw_graph(self):
         node_labels = {}
         for n in self.g.nodes:
-            print(n)
             if n != None:
                 node_labels[n] = n[0]
         nx.draw_circular(self.g, labels=node_labels, with_labels=True)
         item_edge_labels = {}
         alt_edge_labels = {}
-        for (e, d) in zip(self.g.edges(), self.g.edges.data()):
-            if(d[2] != {} and str(d[2]['label']).isdecimal()):
-                alt_edge_labels[e] = str(d[2]['label'])
-            elif d[2] != {}:
-                item_edge_labels[e] = str(d[2]['label'])
+        for e in self.g.nodes():
+            print("nodes")
+            print(e)
+        for e in self.g.edges():
+            print("edge")
+            print(e)
+            if e[1][-1].isdecimal():
+                alt_edge_labels[e] = e[1][-1]
+            else:
+                item_edge_labels[e] = e[0][-1]
         # color the edges
         nx.draw_networkx_edges(
             self.g, pos=nx.circular_layout(self.g), edgelist=self.g.edges(), edge_color="black")
-        nx.draw_networkx_edges(
-            self.g, pos=nx.circular_layout(self.g), edgelist=list(alt_edge_labels.keys()), edge_color="green")
-        nx.draw_networkx_edges(
-            self.g, pos=nx.circular_layout(self.g), edgelist=list(item_edge_labels.keys()), edge_color="blue")
+        # nx.draw_networkx_edges(
+        #    self.g, pos=nx.circular_layout(self.g), edgelist=list(alt_edge_labels.keys()), edge_color="green")
+        # nx.draw_networkx_edges(
+        #    self.g, pos=nx.circular_layout(self.g), edgelist=list(item_edge_labels.keys()), edge_color="blue")
         # color the edge labels
         nx.draw_networkx_edge_labels(
             self.g, pos=nx.circular_layout(self.g), edge_labels=alt_edge_labels, font_color="green")
