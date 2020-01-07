@@ -1,0 +1,12 @@
+P1: PREGUNTA
+Una pregunta?
+R1: RESPOSTA
+0: yes ;
+1: no ;
+I3: ITEM
+P1 -> R1
+A1: ALTERNATIVA
+I3 [(2,I4),(3,I5)]
+E: ENQUESTA
+I3 I2 I1
+END
