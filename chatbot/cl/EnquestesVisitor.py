@@ -1,7 +1,6 @@
 # Generated from Enquestes.g by ANTLR 4.7.2
 import networkx as nx
 import matplotlib.pyplot as plt
-import pickle
 from antlr4 import *
 if __name__ is not None and "." in __name__:
     from .EnquestesParser import EnquestesParser
@@ -25,6 +24,7 @@ class EnquestesVisitor(ParseTreeVisitor):
     def visitEnq(self, ctx: EnquestesParser.EnqContext):
         c = next(ctx.getChildren())
         if c.getText() == "END":
+            nx.write_gpickle(self.g, "test.gpickle")
             self.draw_graph()
         return self.visitChildren(ctx)
 
@@ -32,21 +32,21 @@ class EnquestesVisitor(ParseTreeVisitor):
     def visitPregunta(self, ctx: EnquestesParser.PreguntaContext):
         c = ctx.getChildren()
         l = [next(c).getText() for i in range(ctx.getChildCount())]
-        self.g.add_node((l[0], l[3]))
+        self.g.add_node((l[0], l[2], l[3]))
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by EnquestesParser#resposta.
     def visitResposta(self, ctx: EnquestesParser.RespostaContext):
         c = ctx.getChildren()
         l = [next(c).getText() for i in range(ctx.getChildCount())]
-        self.g.add_node((l[0], tuple(l[3:])))
+        self.g.add_node((l[0], l[2], tuple(l[3:])))
         return self.visitChildren(ctx)
 
     # Visit a parse tree produced by EnquestesParser#item.
     def visitItem(self, ctx: EnquestesParser.ItemContext):
         c = ctx.getChildren()
-        l = [next(c) for i in range(ctx.getChildCount())]
-        id1, id2 = self.getItemIDs(l[3].getText())
+        l = [next(c).getText() for i in range(ctx.getChildCount())]
+        id1, id2 = self.getItemIDs(l[3])
         self.g.add_edge(self.get_node_by_ID(
             id1), self.get_node_by_ID(id2), label=l[0])
         return self.visitChildren(ctx)
@@ -63,7 +63,7 @@ class EnquestesVisitor(ParseTreeVisitor):
     def visitEnquesta(self, ctx: EnquestesParser.EnquestaContext):
         c = ctx.getChildren()
         l = [next(c).getText() for i in range(ctx.getChildCount())]
-        self.g.add_node((l[0], l[3]))
+        self.g.add_node((l[0], l[2], l[3]))
         self.add_question_order(l[0], l[3])
         return self.visitChildren(ctx)
 
@@ -82,7 +82,6 @@ class EnquestesVisitor(ParseTreeVisitor):
     # Gets the edge by id
     def get_edge_by_ID(self, id):
         for i in self.g.edges.data():
-            print(i)
             if i[2] != {} and str(i[2]['label']) == id:
                 return i
 
@@ -108,14 +107,12 @@ class EnquestesVisitor(ParseTreeVisitor):
         for (question, id) in alts:
             alt_edge = self.get_edge_by_ID(id)
             alt_node = self.get_node_by_ID(alt_edge[0][0])
-            self.g.add_edge(item_node, alt_node, label=question)
+            self.g.add_edge(item_node, alt_node, label=str(question))
 
     # Creates edges with the order from 'Enquesta'
     def add_question_order(self, enquestaID, ord):
         start_node = self.get_node_by_ID(enquestaID)
         items = ord.split(' ')
-        print("items")
-        print(items)
         for i in items:
             item_edge = self.get_edge_by_ID(i)
             item_node = self.get_node_by_ID(item_edge[0][0])
@@ -129,7 +126,6 @@ class EnquestesVisitor(ParseTreeVisitor):
     def draw_graph(self):
         node_labels = {}
         for n in self.g.nodes:
-            print(n)
             if n != None:
                 node_labels[n] = n[0]
         nx.draw_circular(self.g, labels=node_labels, with_labels=True)
